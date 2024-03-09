@@ -1,0 +1,151 @@
+name: Maxium Code Eval
+description: Request code evaluation on estimated effort/complexity from Maxium
+inputs:
+  github-token:
+    description: Github token
+    required: true
+  maxium-ai-api-key:
+    description: Maxium AI API key
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Establish fetch depth
+      shell: bash
+      run: |
+        COMMITS=${{ github.event.pull_request.commits }}
+        echo BASE_REF="HEAD~$COMMITS" >> $GITHUB_ENV
+        echo FETCH_DEPTH=$(( COMMITS + 1 )) >> $GITHUB_ENV
+
+        echo ACTOR=${{ github.actor }} >> $GITHUB_ENV
+        echo ACTOR_ID=${{ github.actor_id }}>> $GITHUB_ENV
+        echo PULL_REQUEST_ID=${{ github.event.number }} >> $GITHUB_ENV
+        echo COMMIT_ID=${{ github.sha }} >> $GITHUB_ENV
+        echo BRANCH_NAME=${{ github.ref_name }} >> $GITHUB_ENV
+        echo REPO=${{ github.repository }} >> $GITHUB_ENV
+        echo REPO_ID=${{ github.repository_id }} >> $GITHUB_ENV
+
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ github.head_ref }}
+        fetch-depth: ${{ env.FETCH_DEPTH }}
+    - name: Maxium AI Server Request
+      shell: python
+      env:
+        MAXIUM_AI_API_KEY: ${{ inputs.maxium-ai-api-key }}
+      run: |
+        import os
+        import subprocess
+        import requests
+
+        MAXIUM_AI_API_KEY = os.environ["MAXIUM_AI_API_KEY"]
+        BASE_REF = os.environ["BASE_REF"]
+        MAXIUM_AI_API_URL = "https://api.maxium.ai/v1/code-eval/pull-request"
+        GITHUB_OUTPUT = os.environ["GITHUB_OUTPUT"]
+
+        ACTOR = os.environ["ACTOR"]
+        ACTOR_ID = os.environ["ACTOR_ID"]
+        PULL_REQUEST_ID = os.environ["PULL_REQUEST_ID"]
+        COMMIT_ID = os.environ["COMMIT_ID"]
+        BRANCH_NAME = os.environ["BRANCH_NAME"]
+        REPO = os.environ["REPO"]
+        REPO_ID = os.environ["REPO_ID"]
+
+        def review_diff(diff):
+            headers = {
+                "Content-Type": "application/json",
+                "X-API-Key": MAXIUM_AI_API_KEY,
+            }
+            body = {
+                "author": {
+                  "github_author_id": ACTOR_ID,
+                  "github_username": ACTOR,
+                },
+                "code_change": {
+                  "pull_request_id": PULL_REQUEST_ID,
+                  "commit_id": COMMIT_ID,
+                  "diff": diff,
+                },
+                "repository": {
+                  "branch_name": BRANCH_NAME,
+                  "github_repository": REPO,
+                  "github_repository_id": REPO_ID
+                },
+            }
+
+            is_successful = False
+            score = 0.0
+            challenge_url = ''
+            try:
+              response = requests.post(MAXIUM_AI_API_URL, headers=headers, json=body)
+              response.raise_for_status()
+              result = response.json()["detail"].strip()
+              score = response.json()["score"]
+              challenge_url = response.json()["challenge_url"].strip()
+              is_successful = True
+
+            except Exception as exc:
+              result = 'Maxium AI API is temporarily unavailable'
+
+            return result, score, challenge_url, is_successful
+
+        if __name__ == "__main__":
+            arguments = [
+                "git", "--no-pager", "diff", f"--diff-filter=ACDMRTUXB", f"{BASE_REF}..HEAD"
+            ]
+            diff_process = subprocess.run(
+              arguments,
+              capture_output=True,
+              text=True,
+            )
+
+            diff_process.check_returncode()
+
+            code_diff = diff_process.stdout.strip()
+            
+            is_successful = False
+            review = "No code changes available to evaluate"
+            if code_diff:
+                result, score, challenge_url, is_successful = review_diff(code_diff)
+
+                if is_successful:
+                    review = result + '\n\nThe code changes score ' + str(score) + ' on estimated effort. You can submit a challenge to the score here: ' + challenge_url
+                else:
+                    review = result
+                
+            with open(GITHUB_OUTPUT, "w") as f:
+                print("message<<EOF", file=f)
+                print(review, file=f)
+                print("EOF", file=f)
+
+      id: code_eval
+
+    - name: Delete previous comment
+      uses: izhangzhihao/delete-comment@master
+      with:
+        github_token: "${{ inputs.github-token }}"
+        delete_user_name: "github-actions[bot]"
+        body_regex: "Maxium Code Eval"
+        issue_number: "${{ github.event.number }}"
+
+    - name: PR comment for code score
+      uses: actions/github-script@v6
+      env:
+        MESSAGE: ${{ steps.code_eval.outputs.message }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const output = `
+          ## ⚡️ Maxium Code Eval
+
+          ${process.env.MESSAGE}
+          `;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
