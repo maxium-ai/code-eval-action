@@ -111,7 +111,7 @@ runs:
                 result, score, challenge_url, is_successful = review_diff(code_diff)
 
                 if is_successful:
-                    review = result + '\n\nThe code changes score ' + str(score) + ' on estimated effort. You can submit a challenge to the score here: ' + challenge_url
+                    review = result + '\n\nThe code changes score ' + str(score) + ' on estimated effort. You can submit a challenge to the score [here](' + challenge_url + ').'
                 else:
                     review = result
                 
