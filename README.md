@@ -54,4 +54,4 @@ Maxium's Code Eval Action supports the `v1/code-eval/pull-request` endpoint. The
 | `branch_name` | The github branch name on which changes are being pushed | Required 
 | `github_repository` | Github repository name that contains the pull request | Required 
 | `github_repository_id` | Github assigned repository id for the repo that contains the pull request | Required 
-
+| `labels` | List of labels assigned to pull request at the time of workflow initiation | Optional 
