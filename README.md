@@ -6,7 +6,7 @@ with the response from Maxium's server and delete any previous comments from the
 
 ## Usage
 
-To integrate Maxium with your Actions pipeline, specify the name of this repository with a tag number / branch (`@master` is recommended) as a `step` within your `workflow.yml` file.
+To integrate Maxium with your Actions pipeline, specify the name of this repository with a tag number / branch (`@v1.0.0-beta.1` is recommended) as a `step` within your `workflow.yml` file.
 
 This Action also requires you to provide a Maxium API key which you can get by signing up [here](https://www.maxium.ai/#contact).
 (tip: in order to avoid exposing your token, [store it](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions) as a `secret`).
