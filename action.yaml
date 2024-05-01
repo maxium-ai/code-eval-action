@@ -35,9 +35,14 @@ runs:
         fetch-depth: ${{ env.FETCH_DEPTH }}
 
     - name: Setup Python version
-      uses: actions/setup-python@v5
+      shell: bash
       with:
         python-version: '3.10' 
+
+    - name: Install action requirements
+      uses: actions/setup-python@v5
+      run: |
+        pip install requests==2.31.0
         
     - name: Maxium AI Server Request
       shell: python
